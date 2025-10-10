@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policies>
+  <inbound>
+    <base />
+    <!-- Operation specific throttle -->
+    <rate-limit-by-key calls="30" renewal-period="60" counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" />
+    <!-- Simple caching to reduce backend hits for static claim status (tune as desired) -->
+    <cache-lookup vary-by-developer="false" vary-by-developer-groups="false" downstream-caching-type="none" vary-by-header-name="If-None-Match" />
+    <!-- Add ETag passthrough (if backend supplies) -->
+    <set-variable name="clientETag" value="@(context.Request.Headers.GetValueOrDefault(\"If-None-Match\", string.Empty))" />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+    <!-- Cache for 30 seconds -->
+    <cache-store duration="30" />
+    <!-- Propagate ETag to client -->
+    <choose>
+      <when condition="@(!string.IsNullOrEmpty(context.Response.Headers.GetValueOrDefault(\"ETag\", string.Empty)))">
+        <set-header name="ETag" exists-action="override">
+          <value>@(context.Response.Headers.GetValueOrDefault("ETag", string.Empty))</value>
+        </set-header>
+      </when>
+    </choose>
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

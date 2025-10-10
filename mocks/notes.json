@@ -1,0 +1,81 @@
+[
+  {
+    "id": 1001,
+    "notes": [
+      {"author": "adjuster", "text": "Initial FNOL taken. Vehicle rear-ended at traffic light. Minor bumper damage."},
+      {"author": "insured", "text": "Provided photos of damage via portal."},
+      {"author": "adjuster", "text": "Estimate received from preferred shop. Awaiting approval."},
+      {"author": "system", "text": "Automated coverage verification completed."},
+      {"author": "adjuster", "text": "Repair shop follow-up scheduled for next business day."}
+    ]
+  },
+  {
+    "id": 1002,
+    "notes": [
+      {"author": "adjuster", "text": "Water leak from upstairs bathroom caused ceiling damage and minor mold risk."},
+      {"author": "contractor", "text": "Inspection completed. Drywall removal needed in two rooms."},
+      {"author": "adjuster", "text": "Requesting itemized remediation quote and moisture readings."},
+      {"author": "insured", "text": "Providing appliance receipts related to prior repairs."},
+      {"author": "adjuster", "text": "Moisture readings follow-up set for Friday."}
+    ]
+  },
+  {
+    "id": 1003,
+    "notes": [
+      {"author": "adjuster", "text": "Insured reports hit-and-run. Awaiting police report."},
+      {"author": "insured", "text": "Uploading dashcam footage tonight."},
+      {"author": "adjuster", "text": "Reminder sent for police report reference number."},
+      {"author": "insured", "text": "Dashcam footage uploaded; confirmation requested."},
+      {"author": "adjuster", "text": "Police report still pending; escalation reminder set."}
+    ]
+  },
+  {
+    "id": 1004,
+    "notes": [
+      {"author": "adjuster", "text": "Claim closed after final payment issued."},
+      {"author": "insured", "text": "Confirmed receipt of settlement funds."},
+      {"author": "adjuster", "text": "Archiving supporting documents per retention policy."},
+      {"author": "system", "text": "Closure letter auto-sent to insured."},
+      {"author": "adjuster", "text": "No further action required."}
+    ]
+  },
+  {
+    "id": 1005,
+    "notes": [
+      {"author": "adjuster", "text": "Medical bills received. Need itemized statement for imaging costs."},
+      {"author": "insured", "text": "Doctor will send breakdown tomorrow."},
+      {"author": "adjuster", "text": "Follow-up scheduled for documentation completeness."},
+      {"author": "insured", "text": "Provided itemized imaging statement via portal."},
+      {"author": "adjuster", "text": "Reviewing medical necessity for imaging charges."}
+    ]
+  },
+  {
+    "id": 1006,
+    "notes": [
+      {"author": "insured", "text": "Flight cancellation due to weather; hotel and meal receipts uploaded."},
+      {"author": "adjuster", "text": "Reviewing policy coverage for trip interruption benefits."},
+      {"author": "insured", "text": "Submitted additional meal receipts for last night."},
+      {"author": "adjuster", "text": "Clarifying delay duration with airline statement request."}
+    ]
+  },
+  {
+    "id": 1007,
+    "notes": [
+      {"author": "adjuster", "text": "Two-vehicle collision; liability still being determined."},
+      {"author": "insured", "text": "Provided witness contact info."},
+      {"author": "adjuster", "text": "Requested traffic camera footage from city records."},
+      {"author": "adjuster", "text": "Witness outreach in progress; voicemail left."},
+      {"author": "insured", "text": "Confirmed availability for vehicle inspection Thursday."}
+    ]
+  },
+  {
+    "id": 1008,
+    "notes": [
+      {"author": "adjuster", "text": "Warehouse forklift impact damaged racking and inventory."},
+      {"author": "insured", "text": "Provided preliminary loss list and photos."},
+      {"author": "adjuster", "text": "Engaging structural engineer to assess racking stability."},
+      {"author": "engineer", "text": "Site visit scheduled; structural assessment report ETA 3 days."},
+      {"author": "adjuster", "text": "Requested updated inventory shrink figures from insured."}
+    ]
+  }
+]

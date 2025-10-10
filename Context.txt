@@ -1,0 +1,71 @@
+﻿1 Objective:
+    Deploy a Claim Status API in Azure Container Apps (ACA) fronted by API Management
+    (APIM). Implement: GET /claims/{id} (status) and POST /claims/{id}/summarize (calls Azure
+    OpenAI to return a summary from mock notes). Secure and automate via Azure DevOps
+    CI/CD with image scanning and enable observability.
+
+2 Prerequisites:
+    • Azure subscription, Docker
+    • Azure DevOps project & build agent
+    • ACA, ACR, APIM, Azure OpenAI provisioned, Log Analytics (Container
+    Insights)
+    • Defender for Cloud enabled
+    Language Latest LTS Version
+    (Public)
+    SDK / Runtime
+    Link
+    IDE / Editor .NET 8.0 (LTS) .NET SDK 8.0 VS Code / Visual Studio
+
+3 Steps:
+
+1. Implement a small Claim Status API (single ACA app) that:
+    a. GET /claims/{id} → returns static claim JSON from
+    claims.json.
+    b. POST /claims/{id}/summarize → reads mock notes for the id
+    from notes.json (internal), calls Azure OpenAI, and returns {
+    "summary": "…" }.
+    (Note: To keep the lab lean there is no public /notes endpoint;
+    notes.json is an internal dataset.)
+2. Containerize the service (Dockerfile) and push the image to ACR.
+3. CI/CD pipeline (Azure DevOps) — build & deploy flow:
+    a. Build image.
+    b. Security/scan step (choose one): Defender path: push to ACR → Defender for Containers auto-scans images; use Defender for DevOps for IaC posture.
+    c. Gate: fail pipeline if critical/high vulnerability found (policy).
+    d. Deploy ACA app and APIM configuration (Bicep/Terraform/CLI).
+4. Configure APIM routes and policies:
+    • GET /claims/{id} → returns claim status JSON from claims.json.
+    • POST /claims/{id}/summarize → service fetches mock notes for the id from notes.json, calls Azure OpenAI, and returns a multi-part summary (see API examples). Apply APIM policies for rate limiting and subscription-key auth.
+5. Enable observability: APIM analytics + Container Insights into Log
+    Analytics; save a couple of KQL queries for errors/latency.
+6. Test both endpoints via APIM:
+    • Call GET /claims/{id} to verify status response.
+    • Call POST /claims/{id}/summarize and confirm the response contains summary, customerSummary, adjusterSummary, and nextStep. Inspect logs/latency in APIM analytics and Container Insights.
+
+4 GenAI-Assisted Tasks:
+    • Functional: generate customer-facing summaries and a longer adjuster version;
+    produce “next-step” recommendation text for responses.
+    • DevOps: auto-generate Azure DevOps pipeline YAML and mock
+    claims.json/notes.json datasets.
+    • Security: summarize Defender/scan outputs into prioritized remediation
+    actions; generate APIM policy snippets for throttling & auth.
+    • Observability: produce KQL queries for failing requests and high-latency traces;
+    create plain-English incident digests.
+    • Documentation: auto-generate API reference from routes and draft a short ADR
+    (“Adopt APIM as gateway for claims summarization”).
+5 Learning Outcomes:
+    • Deploy a containerized API behind APIM.
+    • Integrate GenAI (Azure OpenAI) into API flows for summarization and
+    recommendations.
+    • Implement CI/CD with image scanning and optional SBOMs; understand
+    Defender vs OSS options.
+    • Monitor APIs using APIM analytics & Container Insights and apply AI-assisted
+    observability.
+6 Deliverables (to be pushed to GitHub repo) Repository should contain:
+    • src/ — service source + Dockerfile.
+    • mocks/claims.json, mocks/notes.json (5–8 claim records; 3–4 notes blobs).
+    • apim/ — APIM policy files or export.
+    • iac/ — Bicep/Terraform templates.
+    • pipelines/azure-pipelines.yml — Azure DevOps pipeline.
+    • scans/ — link/screenshots to Defender findings
+    • observability/ — saved KQL queries and sample screenshots.
+    • README.md — instructions, GenAI prompts used, how to run/tests.

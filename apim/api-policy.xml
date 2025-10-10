@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policies>
+  <inbound>
+    <base />
+    <!-- Require subscription key (enforced automatically when attached to a product that requires a key) -->
+    <!-- Global rate limit safety net -->
+    <rate-limit-by-key calls="100" renewal-period="60" increment-condition="@(true)" counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" />
+    <!-- Correlation Id (re-use incoming or generate) -->
+    <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault(\"x-correlation-id\", Guid.NewGuid().ToString()))" />
+    <set-header name="x-correlation-id" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault<string>("correlationId"))</value>
+    </set-header>
+    <!-- Temporary permissive CORS (tighten origins in production) -->
+    <cors allow-credentials="false">
+      <allowed-origins>
+        <origin>*</origin>
+      </allowed-origins>
+      <allowed-methods>
+        <method>GET</method>
+        <method>POST</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>*</header>
+      </allowed-headers>
+      <expose-headers>
+        <header>x-correlation-id</header>
+      </expose-headers>
+    </cors>
+    <!-- Forward request to backend (set in APIM service configuration) -->
+    <set-backend-service id="set-backend" backend-id="claims-backend" />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+    <!-- Security / tracing headers -->
+    <set-header name="X-Content-Type-Options" exists-action="override"><value>nosniff</value></set-header>
+    <set-header name="X-Frame-Options" exists-action="override"><value>DENY</value></set-header>
+    <set-header name="X-XSS-Protection" exists-action="override"><value>1; mode=block</value></set-header>
+    <set-header name="Content-Security-Policy" exists-action="override"><value>default-src 'none'; frame-ancestors 'none'; base-uri 'none';</value></set-header>
+    <set-header name="x-correlation-id" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault<string>("correlationId"))</value>
+    </set-header>
+  </outbound>
+  <on-error>
+    <base />
+    <set-variable name="errorMessage" value="@(context.LastError?.Message)" />
+    <return-response>
+      <set-status code="500" reason="Internal Server Error" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>@("{\"error\":\"" + context.Variables.GetValueOrDefault<string>("errorMessage") + "\"}")</set-body>
+    </return-response>
+  </on-error>
+</policies>

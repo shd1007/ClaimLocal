@@ -1,0 +1,90 @@
+[
+  {
+    "id": 1001,
+    "policyNumber": "POL-90001",
+    "type": "Auto",
+    "status": "Open",
+    "lossDate": "2024-11-12",
+    "insuredName": "Jane Doe",
+    "amountClaimed": 5400.75,
+    "amountReserved": 3000.00,
+    "lastUpdated": "2025-01-05T10:15:00Z"
+  },
+  {
+    "id": 1002,
+    "policyNumber": "POL-90002",
+    "type": "Home",
+    "status": "Investigation",
+    "lossDate": "2024-12-01",
+    "insuredName": "Bob Smith",
+    "amountClaimed": 18500.00,
+    "amountReserved": 12000.00,
+    "lastUpdated": "2025-01-06T09:02:00Z"
+  },
+  {
+    "id": 1003,
+    "policyNumber": "POL-90003",
+    "type": "Auto",
+    "status": "Pending Documentation",
+    "lossDate": "2024-12-15",
+    "insuredName": "Alice Johnson",
+    "amountClaimed": 2100.00,
+    "amountReserved": 1500.00,
+    "lastUpdated": "2025-01-06T11:40:00Z"
+  },
+  {
+    "id": 1004,
+    "policyNumber": "POL-90004",
+    "type": "Property",
+    "status": "Closed",
+    "lossDate": "2024-10-03",
+    "insuredName": "Green Farms LLC",
+    "amountClaimed": 76000.00,
+    "amountReserved": 75500.00,
+    "lastUpdated": "2025-01-04T15:28:00Z"
+  },
+  {
+    "id": 1005,
+    "policyNumber": "POL-90005",
+    "type": "Health",
+    "status": "Review",
+    "lossDate": "2024-12-28",
+    "insuredName": "Michael Brown",
+    "amountClaimed": 3200.00,
+    "amountReserved": 2200.00,
+    "lastUpdated": "2025-01-07T08:12:00Z"
+  },
+  {
+    "id": 1006,
+    "policyNumber": "POL-90006",
+    "type": "Travel",
+    "status": "Open",
+    "lossDate": "2025-01-02",
+    "insuredName": "Sara Lee",
+    "amountClaimed": 1800.00,
+    "amountReserved": 1000.00,
+    "lastUpdated": "2025-01-08T10:05:00Z"
+  },
+  {
+    "id": 1007,
+    "policyNumber": "POL-90007",
+    "type": "Auto",
+    "status": "Liability Evaluation",
+    "lossDate": "2024-12-05",
+    "insuredName": "Carlos Martinez",
+    "amountClaimed": 9200.50,
+    "amountReserved": 6000.00,
+    "lastUpdated": "2025-01-08T11:22:00Z"
+  },
+  {
+    "id": 1008,
+    "policyNumber": "POL-90008",
+    "type": "Commercial",
+    "status": "Investigation",
+    "lossDate": "2024-11-20",
+    "insuredName": "Acme Distribution Inc.",
+    "amountClaimed": 145000.00,
+    "amountReserved": 90000.00,
+    "lastUpdated": "2025-01-08T12:30:00Z"
+  }
+]

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policies>
+  <inbound>
+    <base />
+    <!-- Stricter rate limit for summarization (costly OpenAI call) -->
+    <rate-limit-by-key calls="10" renewal-period="60" counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" />
+    <!-- Optional request size guard -->
+    <validate-content size="524288" />
+    <!-- Basic JSON content-type enforcement -->
+    <choose>
+      <when condition="@(!context.Request.Headers.ContainsKey(\"Content-Type\") || !context.Request.Headers.GetValueOrDefault(\"Content-Type\", "").StartsWith("application/json"))">
+        <return-response>
+          <set-status code="415" reason="Unsupported Media Type" />
+          <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+          <set-body>{"error":"Content-Type must be application/json"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

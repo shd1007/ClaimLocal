@@ -1,0 +1,56 @@
+// Consolidated KQL sample queries for Claim Status API observability
+
+// 1. APIM High Latency Requests (>1s)
+AzureDiagnostics
+| where Category == "GatewayLogs"
+| extend latencyMs = toint(properties.response_processing_time) + toint(properties.backend_time) + toint(properties.client_time)
+| where latencyMs > 1000
+| project TimeGenerated, operationName, latencyMs, backendTime=properties.backend_time, clientTime=properties.client_time, backendStatus=properties.backend_status_code
+| order by latencyMs desc
+
+// 2. APIM Failure Rate by Operation
+AzureDiagnostics
+| where Category == "GatewayLogs"
+| summarize failures = countif(toint(properties.backend_status_code) >= 500), total = count() by operationName
+| extend failureRate = failures * 100.0 / total
+| where total > 20 and failureRate > 5
+| order by failureRate desc
+
+// 3. Container App Error Logs (last hour)
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(1h)
+| where Log_s has_any ("fail", "error", "exception")
+| project TimeGenerated, RevisionName_s, ContainerName_s, Log_s
+| order by TimeGenerated desc
+
+// 4. Summarization Endpoint Latency Percentiles
+ContainerAppConsoleLogs_CL
+| where Log_s contains "Request completed" and Log_s contains "/claims/"
+| extend durationMs = toint(extract("duration=(\\d+)", 1, Log_s))
+| summarize p50=percentile(durationMs,50), p95=percentile(durationMs,95), p99=percentile(durationMs,99), avg=avg(durationMs) by bin(TimeGenerated, 15m)
+| order by TimeGenerated desc
+
+// 5. 5xx Error Spike Detection (APIM)
+AzureDiagnostics
+| where Category == "GatewayLogs" and toint(properties.backend_status_code) between (500 .. 599)
+| summarize errors=count() by bin(TimeGenerated, 5m)
+| where errors > 20
+| order by TimeGenerated desc
+
+// 6. Optional Vulnerability Gate Trend (custom ingestion required)
+VulnGate_CL
+| summarize any(High_d), any(Critical_d) by ImageTag_s, bin(TimeGenerated, 1d)
+| order by TimeGenerated desc
+
+// 7. Container Restart Events (if surfaced)
+ContainerAppSystemLogs_CL
+| where Log_s contains "Restarting" or Log_s contains "CrashLoop"
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+
+// 8. High Memory Usage (if metrics exported)
+InsightsMetrics
+| where Name == "containerMemoryRssBytes" and Namespace == "azure.containerapps"
+| extend memMB = Val/1024/1024
+| summarize avg(memMB), p95=percentile(memMB,95) by bin(TimeGenerated, 15m), Tags
+| order by TimeGenerated desc

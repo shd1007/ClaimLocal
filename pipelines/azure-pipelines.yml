@@ -18,203 +18,227 @@ trigger:
     include:
       - main
 
-pr:
-  branches:
-    include:
-      - main
-
 variables:
-  BUILD_CONFIGURATION: Release
-  DOTNET_VERSION: '8.0.x'
-  IMAGE_TAG: '$(Build.BuildId)'
-  IMAGE_FULL: '$(ACR_LOGIN_SERVER)/$(IMAGE_REPO):$(IMAGE_TAG)'
-  VULN_FAIL_SEVERITY: 'High'
+  - group: ClaimLocal-Pipeline-Vars
+  - name: BUILD_CONFIGURATION
+    value: 'Release'
+  - name: DOTNET_VERSION
+    value: '8.0.x'
+  - name: IMAGE_TAG
+    value: '$(Build.BuildId)'
+  - name: IMAGE_FULL
+    value: '$(ACR_LOGIN_SERVER)/$(IMAGE_REPO):$(IMAGE_TAG)'
+  - name: VULN_FAIL_SEVERITY
+    value: 'High'
 
 stages:
-  - stage: build
-    displayName: Build & Unit Test
-    jobs:
-      - job: build
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - task: UseDotNet@2
-            displayName: 'Use .NET $(DOTNET_VERSION)'
-            inputs:
-              packageType: sdk
-              version: '$(DOTNET_VERSION)'
+- stage: BuildAndDeploy
+  displayName: 'Build, Push and Deploy'
+  jobs:
+  - job: Build
+    displayName: 'Build and Scan'
+    pool:
+      name: Default
+    steps:
+      - checkout: self
+        clean: true
 
-          - task: DotNetCoreCLI@2
-            displayName: Restore
-            inputs:
-              command: 'restore'
-              projects: 'ClaimStatusApi.sln'
+      - task: UseDotNet@2
+        displayName: 'Use .NET $(DOTNET_VERSION)'
+        inputs:
+          packageType: sdk
+          version: '$(DOTNET_VERSION)'
 
-          - task: DotNetCoreCLI@2
-            displayName: Build
-            inputs:
-              command: 'build'
-              projects: 'ClaimStatusApi.sln'
-              arguments: '--configuration $(BUILD_CONFIGURATION)'
+      - task: DotNetCoreCLI@2
+        displayName: Restore
+        inputs:
+          command: 'restore'
+          projects: 'ClaimStatusApi.sln'
 
-          # (Optional) Add tests if/when present
-          # - task: DotNetCoreCLI@2
-          #   displayName: Test
-          #   inputs:
-          #     command: 'test'
-          #     projects: 'tests/**/*.csproj'
-          #     arguments: '--configuration $(BUILD_CONFIGURATION) --collect "XPlat Code Coverage"'
+      - task: DotNetCoreCLI@2
+        displayName: Build
+        inputs:
+          command: 'build'
+          projects: 'ClaimStatusApi.sln'
+          arguments: '--configuration $(BUILD_CONFIGURATION)'
 
-          - publish: $(System.DefaultWorkingDirectory)/src/ClaimStatusApi/bin/$(BUILD_CONFIGURATION)/net8.0
-            artifact: drop
+      - publish: $(System.DefaultWorkingDirectory)/src/ClaimStatusApi/bin/$(BUILD_CONFIGURATION)/net8.0
+        artifact: drop
 
-  - stage: container
-    displayName: Build & Push Image
-    dependsOn: build
-    jobs:
-      - job: docker
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-            clean: true
+      - task: AzureCLI@2
+        displayName: 'Azure CLI: Login'
+        inputs:
+          azureSubscription: 'AZURE_SUB'
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            echo "Logged in."
 
-          - task: AzureCLI@2
-            displayName: 'Azure CLI: Login'
-            inputs:
-              azureSubscription: 'AZURE_SUB'
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "Logged in."
+      - task: Bash@3
+        displayName: 'Docker Build'
+        inputs:
+          targetType: inline
+          script: |
+            docker build -t $(IMAGE_FULL) .
 
-          - task: Bash@3
-            displayName: 'Docker Build'
-            inputs:
-              targetType: inline
-              script: |
-                docker build -t $(IMAGE_FULL) .
+      - task: AzureCLI@2
+        displayName: 'Docker Push'
+        inputs:
+          azureSubscription: 'AZURE_SUB'
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            az acr login -n $(ACR_NAME)
+            docker push $(IMAGE_FULL)
 
-          - task: Bash@3
-            displayName: 'Docker Push'
-            inputs:
-              targetType: inline
-              script: |
-                az acr login -n $(ACR_NAME)
-                docker push $(IMAGE_FULL)
-
-          # Defender for Cloud will auto-scan after push. Poll for vulnerability summary.
-          - task: Bash@3
-            name: vulnscan
-            displayName: 'Check ACR Vulnerabilities (Gate)' 
-            inputs:
-              targetType: inline
-              script: |
-                echo "Waiting for vulnerability scan result..."
-                REPO=$(IMAGE_REPO)
-                TAG=$(IMAGE_TAG)
-                # Poll up to 10 times
-                for i in {1..10}; do
-                  echo "Attempt $i: fetching vulnerabilities..."
-                  az acr manifest show-vulnerabilities --only-show-base-image-vulnerabilities false \
-                    --registry $(ACR_NAME) --repository $REPO --tag $TAG --output json > vulns.json 2>/dev/null || true
-                  if grep -q 'scanStatus' vulns.json; then
-                    STATUS=$(jq -r '.scanStatus' vulns.json)
-                    echo "Status: $STATUS"
-                    if [ "$STATUS" = "Completed" ]; then
-                      break
-                    fi
-                  fi
-                  sleep 15
-                done
-                if [ ! -f vulns.json ]; then
-                  echo "No vulnerability report found"; exit 1
+      - task: Bash@3
+        name: vulnscan
+        displayName: 'Check ACR Vulnerabilities (Gate)' 
+        inputs:
+          targetType: inline
+          script: |
+            echo "Waiting for vulnerability scan result..."
+            REPO=$(IMAGE_REPO)
+            TAG=$(IMAGE_TAG)
+            # Poll up to 3 times
+            for i in {1..3}; do
+              echo "Attempt $i: fetching vulnerabilities..."
+              az acr manifest show-vulnerabilities --only-show-base-image-vulnerabilities false \
+                --registry $(ACR_NAME) --repository $REPO --tag $TAG --output json > vulns.json 2>/dev/null || true
+              if grep -q 'scanStatus' vulns.json; then
+                STATUS=$(jq -r '.scanStatus' vulns.json)
+                echo "Status: $STATUS"
+                if [ "$STATUS" = "Completed" ]; then
+                  break
                 fi
-                echo "Vulnerability summary:"; cat vulns.json | jq '.summary'
-                # Count high / critical
-                HIGH=$(jq -r '.summary.high | select(.!=null)' vulns.json || echo 0)
-                CRIT=$(jq -r '.summary.critical | select(.!=null)' vulns.json || echo 0)
-                echo "High: $HIGH Critical: $CRIT"
-                # Fail gate logic
-                if [ "$VULN_FAIL_SEVERITY" = "High" ] && { [ "$HIGH" -gt 0 ] || [ "$CRIT" -gt 0 ]; }; then
-                  echo "Failing due to High/Critical vulnerabilities"; exit 1; fi
-                if [ "$VULN_FAIL_SEVERITY" = "Critical" ] && [ "$CRIT" -gt 0 ]; then
-                  echo "Failing due to Critical vulnerabilities"; exit 1; fi
-                echo "Vulnerability gate passed"
+              fi
+              sleep 15
+            done
+            if [ ! -f vulns.json ]; then
+              echo "No vulnerability report found"; exit 1
+            fi
+            echo "Vulnerability summary:"; cat vulns.json | jq '.summary'
+            # Count high / critical
+            HIGH=$(jq -r '.summary.high | select(.!=null)' vulns.json || echo 0)
+            CRIT=$(jq -r '.summary.critical | select(.!=null)' vulns.json || echo 0)
+            echo "High: $HIGH Critical: $CRIT"
+            # Fail gate logic
+            if [ "$VULN_FAIL_SEVERITY" = "High" ] && { [ "$HIGH" -gt 0 ] || [ "$CRIT" -gt 0 ]; }; then
+              echo "Failing due to High/Critical vulnerabilities"; exit 1; fi
+            if [ "$VULN_FAIL_SEVERITY" = "Critical" ] && [ "$CRIT" -gt 0 ]; then
+              echo "Failing due to Critical vulnerabilities"; exit 1; fi
+            echo "Vulnerability gate passed"
 
-          - publish: vulns.json
-            artifact: vulnerabilityReport
+      - publish: vulns.json
+        artifact: vulnerabilityReport
 
-  - stage: deploy
-    displayName: Deploy ACA & APIM
-    dependsOn: container
-    condition: succeeded()
-    jobs:
-      - job: deploy
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+  - job: Deploy
+    displayName: 'Deploy to Azure'
+    dependsOn: Build
+    pool:
+      name: Default
+    steps:
+      - task: Bash@3
+        displayName: 'Upgrade Azure CLI'
+        inputs:
+          targetType: 'inline'
+          script: |
+            set -e
+            echo "Current Azure CLI version:"
+            az --version
+            echo "Upgrading Azure CLI and containerapp extension..."
+            pip install --pre azure-cli --extra-index-url https://azure.github.io/azure-cli/python -q --break-system-packages
+            az extension add --name containerapp --upgrade -y
+            echo "Azure CLI upgrade complete."
+            echo "New Azure CLI version:"
+            az --version
+      - task: AzureCLI@2
+        displayName: 'Deploy / Update Container App'
+        inputs:
+          azureSubscription: 'AZURE_SUB'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            set -e
+            echo "Deploying Container App $(ACA_NAME) in $(RESOURCE_GROUP)"
 
-          - task: AzureCLI@2
-            displayName: 'Deploy / Update Container App'
-            inputs:
-              azureSubscription: 'AZURE_SUB'
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                set -e
-                echo "Deploying Container App $(ACA_NAME) in $(RESOURCE_GROUP)"
-                # Create Container App (idempotent)
-                az containerapp create \
-                  --name $(ACA_NAME) \
-                  --resource-group $(RESOURCE_GROUP) \
-                  --environment $(ACA_ENV) \
-                  --image $(IMAGE_FULL) \
-                  --ingress external \
-                  --target-port 8080 \
-                  --min-replicas 1 --max-replicas 2 \
-                  --query "id" || az containerapp update --name $(ACA_NAME) --resource-group $(RESOURCE_GROUP) --image $(IMAGE_FULL)
+            # Create or update the container app with a system-assigned identity.
+            az containerapp create \
+              --name $(ACA_NAME) \
+              --resource-group $(RESOURCE_GROUP) \
+              --environment $(ACA_ENV) \
+              --image $(IMAGE_FULL) \
+              --registry-server $(ACR_LOGIN_SERVER) \
+              --ingress external \
+              --target-port 8080 \
+              --min-replicas 1 \
+              --max-replicas 2 \
+              --system-assigned
 
-                # Update secrets / env (OpenAI endpoint & deployment)
-                az containerapp secret set --name $(ACA_NAME) --resource-group $(RESOURCE_GROUP) \
-                  --secrets openai-endpoint=$(OPENAI_ENDPOINT) openai-deployment=$(OPENAI_DEPLOYMENT)
-                az containerapp update --name $(ACA_NAME) --resource-group $(RESOURCE_GROUP) \
-                  --set-env-vars OpenAI__Endpoint=secretref:openai-endpoint OpenAI__Deployment=secretref:openai-deployment
+            # Grant the container app's managed identity the AcrPull role on the container registry.
+            echo "Assigning AcrPull role to managed identity..."
+            PRINCIPAL_ID=$(az containerapp identity show --name $(ACA_NAME) --resource-group $(RESOURCE_GROUP) --query principalId -o tsv)
+            ACR_ID=$(az acr show --name $(ACR_NAME) --resource-group $(RESOURCE_GROUP) --query id -o tsv)
+            az role assignment create --assignee $PRINCIPAL_ID --role AcrPull --scope $ACR_ID
 
-          # Placeholder for APIM configuration (import OpenAPI from running app or apply policy files)
-          - task: AzureCLI@2
-            displayName: 'Configure APIM (placeholder)'
-            inputs:
-              azureSubscription: 'AZURE_SUB'
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                set -e
-                if [ -z "$(APIM_NAME)" ]; then
-                  echo "APIM_NAME not set; skipping APIM configuration"; exit 0; fi
-                echo "Configuring APIM $(APIM_NAME)"
-                # Discover Container App FQDN
-                FQDN=$(az containerapp show -n $(ACA_NAME) -g $(RESOURCE_GROUP) --query properties.configuration.ingress.fqdn -o tsv)
-                echo "Container App FQDN: $FQDN"
-                # Import / upsert API from live swagger
-                az apim api import --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
-                  --path claims --api-id claims-api --specification-url https://$FQDN/swagger/v1/swagger.json --protocols https || true
-                # Apply global API policy
-                az apim api policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
-                  --api-id claims-api --format rawxml --policy-file apim/api-policy.xml
-                # Map operationIds to policies
-                az apim api operation policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
-                  --api-id claims-api --operation-id GetClaimById --format rawxml --policy-file apim/get-claim-operation-policy.xml || true
-                az apim api operation policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
-                  --api-id claims-api --operation-id SummarizeClaim --format rawxml --policy-file apim/post-summarize-operation-policy.xml || true
-                echo "APIM configuration complete"
+            # It can take a few seconds for the role assignment to propagate.
+            echo "Waiting for role assignment to propagate..."
+            sleep 10
 
-          - task: Bash@3
-            displayName: 'Output Deployment Info'
-            inputs:
-              targetType: inline
-              script: |
-                echo "IMAGE: $(IMAGE_FULL) deployed to ACA $(ACA_NAME)"
+            # Now that the identity and role are set, update the app to use the managed identity for the registry.
+            echo "Updating container app to use system-assigned managed identity for ACR..."
+            az containerapp registry set \
+              --name $(ACA_NAME) \
+              --resource-group $(RESOURCE_GROUP) \
+              --server $(ACR_LOGIN_SERVER) \
+              --identity system
+              
+            # Set the secrets for the OpenAI service.
+            echo "Setting OpenAI secrets..."
+            az containerapp secret set \
+              --name $(ACA_NAME) \
+              --resource-group $(RESOURCE_GROUP) \
+              --secrets openai-endpoint=$(OPENAI_ENDPOINT) openai-deployment=$(OPENAI_DEPLOYMENT)
+
+            # Update the container app with the environment variables that reference the secrets.
+            echo "Updating container app with environment variables..."
+            az containerapp update \
+              --name $(ACA_NAME) \
+              --resource-group $(RESOURCE_GROUP) \
+              --set-env-vars OpenAI__Endpoint=secretref:openai-endpoint OpenAI__Deployment=secretref:openai-deployment ASPNETCORE_URLS=http://+:8080
+
+      - task: AzureCLI@2
+        displayName: 'Configure APIM (placeholder)'
+        inputs:
+          azureSubscription: 'AZURE_SUB'
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            if [ -z "$(APIM_NAME)" ]; then
+              echo "APIM_NAME not set; skipping APIM configuration"; exit 0; fi
+            echo "Configuring APIM $(APIM_NAME)"
+            # Discover Container App FQDN
+            FQDN=$(az containerapp show -n $(ACA_NAME) -g $(RESOURCE_GROUP) --query properties.configuration.ingress.fqdn -o tsv)
+            echo "Container App FQDN: $FQDN"
+            # # Import / upsert API from live swagger
+            # az apim api import --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
+            #   --path claims --api-id claims-api --specification-format OpenApi --specification-url https://$FQDN/swagger/v1/swagger.json --protocols https || true
+            # Apply global API policy
+            az apim api policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
+              --api-id claims-api --format rawxml --policy-file apim/api-policy.xml
+            # Map operationIds to policies
+            az apim api operation policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
+              --api-id claims-api --operation-id GetClaimById --format rawxml --policy-file apim/get-claim-operation-policy.xml || true
+            az apim api operation policy apply --resource-group $(RESOURCE_GROUP) --service-name $(APIM_NAME) \
+              --api-id claims-api --operation-id SummarizeClaim --format rawxml --policy-file apim/post-summarize-operation-policy.xml || true
+            echo "APIM configuration complete"
+
+      - task: Bash@3
+        displayName: 'Output Deployment Info'
+        inputs:
+          targetType: inline
+          script: |
+            echo "IMAGE: $(IMAGE_FULL) deployed to ACA $(ACA_NAME)"
 
 # End of pipeline

@@ -1,33 +1,28 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Azure.Core;
+using Azure;
+using Azure.AI.OpenAI;
 using ClaimStatusApi.Models;
+using OpenAI.Chat;
+using System.ClientModel;
+using System.Text.Json;
 
 namespace ClaimStatusApi.Services;
 
 // REST implementation using Azure OpenAI Chat Completions endpoint
 public class OpenAiSummarizationService : ISummarizationService
 {
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNameCaseInsensitive = true
-    };
-
     private readonly ILogger<OpenAiSummarizationService> _logger;
-    private readonly HttpClient _http;
-    private readonly string _endpoint;
+    private readonly AzureOpenAIClient _client;
     private readonly string _deployment;
-    private readonly TokenCredential _credential;
 
-    public OpenAiSummarizationService(ILogger<OpenAiSummarizationService> logger, IConfiguration config, TokenCredential credential, IHttpClientFactory httpFactory)
+    public OpenAiSummarizationService(ILogger<OpenAiSummarizationService> logger, IConfiguration config)
     {
         _logger = logger;
-        _credential = credential;
-        _endpoint = config["OpenAI:Endpoint"]?.TrimEnd('/') ?? throw new InvalidOperationException("OpenAI:Endpoint not configured");
+        var endpoint = config["OpenAI:Endpoint"] ?? throw new InvalidOperationException("OpenAI:Endpoint not configured");
+        var apiKey = config["OpenAI:ApiKey"];
         _deployment = config["OpenAI:Deployment"] ?? throw new InvalidOperationException("OpenAI:Deployment not configured");
-        _http = httpFactory.CreateClient("openai");
+        AzureKeyCredential azureKeyCredential = new AzureKeyCredential(apiKey);
+        var apiKeyCredential = new ApiKeyCredential(apiKey);
+        _client = new AzureOpenAIClient(new Uri(endpoint), apiKeyCredential);
     }
 
     public async Task<ClaimSummaryResponse> SummarizeAsync(Claim claim, ClaimNoteSet noteSet, CancellationToken ct = default)
@@ -36,46 +31,29 @@ public class OpenAiSummarizationService : ISummarizationService
         var systemPrompt = "You are an insurance claims assistant. Create: (1) a concise general summary (2) a simple customer-facing summary (3) a more detailed adjuster summary with any missing info callouts (4) a single recommended next step phrase. Return JSON with keys summary, customerSummary, adjusterSummary, nextStep.";
         var userPrompt = $"Claim: {claim.Id} Type: {claim.Type} Status: {claim.Status} LossDate: {claim.LossDate} Notes:\n{notesPlain}";
 
-        var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15-preview";
-
-        var request = new
+        var requestOptions = new ChatCompletionOptions()
         {
-            messages = new object[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            temperature = 0.4,
-            max_tokens = 400
+            Temperature = 0.4f,
+            MaxOutputTokenCount = 400,
+            TopP = 1.0f,
+            FrequencyPenalty = 0.0f,
+            PresencePenalty = 0.0f
         };
-
+        List<ChatMessage> messages = new List<ChatMessage>()
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt),
+        };
         try
         {
-            using var httpReq = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = JsonContent.Create(request, options: JsonOpts)
-            };
-
-            // Acquire token via managed identity (default credential)
-            var token = await _credential.GetTokenAsync(new TokenRequestContext(new[] { "https://cognitiveservices.azure.com/.default" }), ct);
-            httpReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.Token);
-
-            var resp = await _http.SendAsync(httpReq, ct);
-            var raw = await resp.Content.ReadAsStringAsync(ct);
-            if (!resp.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("OpenAI call failed: {Status} {Body}", resp.StatusCode, raw);
-                return new ClaimSummaryResponse(claim.Id, "Summarization unavailable", "Summarization unavailable", "Summarization unavailable", "Retry later");
-            }
-
-            var parsed = JsonSerializer.Deserialize<ChatResponse>(raw, JsonOpts);
-            var firstChoice = parsed?.Choices?.FirstOrDefault();
-            var content = firstChoice?.Message?.Content ?? string.Empty;
-
+            var chatClient = _client.GetChatClient(_deployment);
+            var response = chatClient.CompleteChat(messages, requestOptions);
+            var content = response.Value.Content[0].Text ?? string.Empty;
             ClaimSummaryResponse? model = null;
             try
             {
-                model = JsonSerializer.Deserialize<ClaimSummaryRaw>(content, JsonOpts)?.ToResponse(claim.Id);
+               var rawModel = JsonSerializer.Deserialize<ClaimSummaryRaw>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+               model = rawModel?.ToResponse(claim.Id);
             }
             catch (Exception ex)
             {
@@ -85,23 +63,9 @@ public class OpenAiSummarizationService : ISummarizationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "OpenAI summarization failed");
+            _logger.LogError(ex, "AzureOpenAI summarization failed");
             return new ClaimSummaryResponse(claim.Id, "Summarization unavailable", "Summarization unavailable", "Summarization unavailable", "Retry later");
         }
-    }
-
-    private sealed class ChatResponse
-    {
-        public List<ChatChoice>? Choices { get; set; }
-    }
-    private sealed class ChatChoice
-    {
-        public ChatMessage? Message { get; set; }
-    }
-    private sealed class ChatMessage
-    {
-        public string? Role { get; set; }
-        public string? Content { get; set; }
     }
 
     private record ClaimSummaryRaw(string? Summary, string? CustomerSummary, string? AdjusterSummary, string? NextStep)

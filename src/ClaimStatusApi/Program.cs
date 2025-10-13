@@ -1,10 +1,19 @@
 using System.Reflection;
 using Azure.Identity;
+using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using ClaimStatusApi.Models;
 using ClaimStatusApi.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// If a Key Vault URI is provided (via configuration or KEY_VAULT_URI env var), load secrets from Key Vault
+var keyVaultUri = builder.Configuration["KeyVault:Uri"] ?? Environment.GetEnvironmentVariable("KEY_VAULT_URI");
+if (!string.IsNullOrEmpty(keyVaultUri))
+{
+    // This will add Key Vault secrets into the IConfiguration root so they can be accessed like other config values.
+    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
+}
 
 // Serilog
 builder.Host.UseSerilog((ctx, lc) => lc
@@ -22,8 +31,7 @@ builder.Services.AddSingleton<IClaimRepository, ClaimRepository>();
 builder.Services.AddSingleton<ISummarizationService>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    var cred = new DefaultAzureCredential();
-    return new OpenAiSummarizationService(sp.GetRequiredService<ILogger<OpenAiSummarizationService>>(), cfg, cred, sp.GetRequiredService<IHttpClientFactory>());
+    return new OpenAiSummarizationService(sp.GetRequiredService<ILogger<OpenAiSummarizationService>>(), cfg);
 });
 
 var app = builder.Build();

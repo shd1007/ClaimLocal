@@ -1,0 +1,133 @@
+{
+	"info": {
+		"_postman_id": "6901b952-1229-41bb-9d5d-8cc4c05a2bbf",
+		"name": "ClaimsApi",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "8905711"
+	},
+	"item": [
+		{
+			"name": "claims",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "summarize",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001/summarize",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001",
+						"summarize"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "claims Local",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "summarize Local",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001/summarize",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001",
+						"summarize"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "claims Local Docker",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "summarize Local Docker",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/claims/1001/summarize",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"claims",
+						"1001",
+						"summarize"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

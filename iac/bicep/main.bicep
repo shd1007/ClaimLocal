@@ -115,6 +115,17 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// Grant Container App AcrPull access to the registry
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployAcr) {
+  name: guid(acr.id, containerApp.id, 'AcrPull')
+  scope: acr
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // API Management (minimal)
 resource apim 'Microsoft.ApiManagement/service@2022-08-01' = {
   name: apimName

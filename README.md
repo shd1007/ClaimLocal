@@ -134,8 +134,8 @@ flowchart LR
    E -->|Clean| F[Deploy ACA]
    E -->|High/Critical| G[Fail Pipeline]
    F --> H[Configure APIM Policies]
-   subgraph Optional_Security_Augmentation[Optional Security Augmentation]
-      X[Defender for DevOps Task (IaC / Secrets Scan)] --> B
+   subgraph Security_Augmentation
+      X[Defender for DevOps Task] --> B
    end
    style G fill:#ffdddd,stroke:#ff5555
    style F fill:#ddffdd,stroke:#22aa22
